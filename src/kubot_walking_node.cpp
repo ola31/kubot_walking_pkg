@@ -34,7 +34,7 @@ using namespace Eigen;
  * p_thread Settings
  * *****************/
 bool is_run = true;
-int Control_Cycle = 10; //ms
+int Control_Cycle = 5; //ms
 
 
 //* Joint Angle ****
@@ -69,11 +69,11 @@ struct XY{
 */
 
 double All_time_trajectory = 10000;//15.0;  //(sec)
-double dt = 0.01;  //sampling time
-int N = 300;  //preview NL
+double dt = 0.005;  //sampling time
+int N = 600;  //preview NL
 int n = (int)((double)All_time_trajectory/dt)+1;
 
-double z_c = 0.22; //Height of CoM
+double z_c = 0.25; //Height of CoM
 double g = 9.81; //Gravity Acceleration
 
 MatrixXd A(3,3);
@@ -128,13 +128,13 @@ double func_1_cos(double t, double init, double final, double T);
 Vector3d func_1_cos(double t, Vector3d init, Vector3d final, double T);
 VectorXd func_1_cos(double t, VectorXd init, VectorXd final, double T);
 double Tick_to_Radian(int Tick_4095, int joint_index);
-int Radian_to_Tick(int Radian, int joint_index);  //joint_index : 0,1,2...11
+int Radian_to_Tick(double Radian, int joint_index);  //joint_index : 0,1,2...11
 
 int time_index = 0;
 
 //double dt = 0.01; //10ms
-double T = 3;
-double t = T + 1.0;
+double T = 5;
+double t = 0.0;//T + 1.0;
 double dt_ms = 1.0;  //ms
 int phase = 0;
 
@@ -259,7 +259,8 @@ void process(void){
       q_R = IK_Geometric(Body, -L1, L3, L4, L5, Foot_R);
       q_command_L = func_1_cos(t,init_L,q_L,T);
       q_command_R = func_1_cos(t,init_R,q_R,T);
-      t += dt;
+      std::cout<<"rad : "<<q_command_L(4)<<std::endl;
+      //t += dt;
     }
     else {
       phase++;
@@ -393,20 +394,29 @@ void process(void){
   joint[RAP].targetRadian = q_command_R(4);//*D2R;
   joint[RAR].targetRadian = q_command_R(5);//*D2R;
 */
+
+  q_command_L(1)+=FootPlaner.get_LHR_add_q();
+  q_command_R(1)+=FootPlaner.get_RHR_add_q();
+
+  //q_command_L(5)+= -  FootPlaner.get_LHR_add_q();
+  //q_command_R(5)+= -FootPlaner.get_RHR_add_q();
+
   int joint_command[12];
   joint_command[0]  = Radian_to_Tick(q_command_R(0),0);
-  joint_command[2]  = Radian_to_Tick(q_command_R(1),1);
-  joint_command[4]  = Radian_to_Tick(q_command_R(2),2);
-  joint_command[6]  = Radian_to_Tick(q_command_R(3),3);
-  joint_command[8]  = Radian_to_Tick(q_command_R(4),4);
-  joint_command[10] = Radian_to_Tick(q_command_R(5),5);
+  joint_command[2]  = Radian_to_Tick(q_command_R(1),2);
+  joint_command[4]  = Radian_to_Tick(q_command_R(2),4);
+  joint_command[6]  = Radian_to_Tick(q_command_R(3),6);
+  joint_command[8]  = Radian_to_Tick(q_command_R(4),8);
+  joint_command[10] = Radian_to_Tick(q_command_R(5),10);
 
-  joint_command[1]  = Radian_to_Tick(q_command_L(0),0);
-  joint_command[3]  = Radian_to_Tick(q_command_L(1),1);
-  joint_command[5]  = Radian_to_Tick(q_command_L(2),2);
-  joint_command[7]  = Radian_to_Tick(q_command_L(3),3);
-  joint_command[8]  = Radian_to_Tick(q_command_L(4),4);
-  joint_command[11] = Radian_to_Tick(q_command_L(5),5);
+  joint_command[1]  = Radian_to_Tick(q_command_L(0),1);
+  joint_command[3]  = Radian_to_Tick(q_command_L(1),3);
+  joint_command[5]  = Radian_to_Tick(q_command_L(2),5);
+  joint_command[7]  = Radian_to_Tick(q_command_L(3),7);
+  joint_command[9]  = Radian_to_Tick(q_command_L(4),9);
+  joint_command[11] = Radian_to_Tick(q_command_L(5),11);
+
+  std::cout<<"LHR_add : "<<FootPlaner.get_LHR_add_q()<<std::endl;
 
 
   //* Publish topics
@@ -445,43 +455,87 @@ void *p_function(void * data)
   ROS_INFO("thread fuction start");
 
   static struct timespec next_time;
+  static struct timespec start_time;
+  static struct timespec end_time;
+  int time_diff;
+  int overrun_count = 0;
   clock_gettime(CLOCK_MONOTONIC,&next_time);
 
   Preview_Init_Setting();
   FootPlaner.Plan();
 
-  joint_direction <<  1,  1,  1,  1, -1,  1, -1, 1, -1, 1,  1,  1;
+  joint_direction << -1, -1, -1, -1, -1,  1, -1, 1, 1, -1,  1,  1;
                    //RHY LHY RHR LHR RHP LHP RN LN RAP LAP RAR LAR
 
   int encoder_read[12];
 
   Dxl_.Initialize();
   Dxl_.Read_Dxl_Encoder_Once(encoder_read);
-  q_SyncRead_R << Tick_to_Radian(encoder_read[0],0),\
-                  Tick_to_Radian(encoder_read[1],1),\
-                  Tick_to_Radian(encoder_read[2],2),\
-                  Tick_to_Radian(encoder_read[3],3),\
-                  Tick_to_Radian(encoder_read[4],4),\
-                  Tick_to_Radian(encoder_read[5],5);
+  q_SyncRead_R<<0,0,0,0,0,0;
+  q_SyncRead_L<<0,0,0,0,0,0;
+  q_SyncRead_R[0] = Tick_to_Radian(encoder_read[0],0);
+  q_SyncRead_R[1] = Tick_to_Radian(encoder_read[2],2);
+  q_SyncRead_R[2] = Tick_to_Radian(encoder_read[4],4);
+  q_SyncRead_R[3] = Tick_to_Radian(encoder_read[6],6);
+  q_SyncRead_R[4] = Tick_to_Radian(encoder_read[8],8);
+  q_SyncRead_R[5] = Tick_to_Radian(encoder_read[10],10);
 
-  q_SyncRead_L << Tick_to_Radian(encoder_read[6],6),\
-                  Tick_to_Radian(encoder_read[7],7),\
-                  Tick_to_Radian(encoder_read[8],8),\
-                  Tick_to_Radian(encoder_read[9],9),\
-                  Tick_to_Radian(encoder_read[10],10),\
-                  Tick_to_Radian(encoder_read[11],11);
+  q_SyncRead_L[0] = Tick_to_Radian(encoder_read[1],1);
+  q_SyncRead_L[1] = Tick_to_Radian(encoder_read[3],3);
+  q_SyncRead_L[2] = Tick_to_Radian(encoder_read[5],5);
+  q_SyncRead_L[3] = Tick_to_Radian(encoder_read[7],7);
+  q_SyncRead_L[4] = Tick_to_Radian(encoder_read[9],9);
+  q_SyncRead_L[5] = Tick_to_Radian(encoder_read[11],11);
+
+  std::cout<<"L"<<std::endl<<q_SyncRead_L*R2D<<std::endl;
+  std::cout<<"R"<<std::endl<<q_SyncRead_R*R2D<<std::endl;
 
   int j = 0;
 
+  //Dxl_.Torque_OFF_dxls();
+
   while(is_run){
+    clock_gettime(CLOCK_MONOTONIC,&start_time);
 
     next_time.tv_sec += (next_time.tv_nsec + Control_Cycle * 1000000) / 1000000000;
     next_time.tv_nsec = (next_time.tv_nsec + Control_Cycle * 1000000) % 1000000000;
     process();
-    j++;
+    //j++;
+/*
+    Dxl_.Read_Dxl_Encoder_Once(encoder_read);
+    q_SyncRead_R[0] = Tick_to_Radian(encoder_read[0],0);
+    q_SyncRead_R[1] = Tick_to_Radian(encoder_read[2],2);
+    q_SyncRead_R[2] = Tick_to_Radian(encoder_read[4],4);
+    q_SyncRead_R[3] = Tick_to_Radian(encoder_read[6],6);
+    q_SyncRead_R[4] = Tick_to_Radian(encoder_read[8],8);
+    q_SyncRead_R[5] = Tick_to_Radian(encoder_read[10],10);
+
+    q_SyncRead_L[0] = Tick_to_Radian(encoder_read[1],1);
+    q_SyncRead_L[1] = Tick_to_Radian(encoder_read[3],3);
+    q_SyncRead_L[2] = Tick_to_Radian(encoder_read[5],5);
+    q_SyncRead_L[3] = Tick_to_Radian(encoder_read[7],7);
+    q_SyncRead_L[4] = Tick_to_Radian(encoder_read[9],9);
+    q_SyncRead_L[5] = Tick_to_Radian(encoder_read[11],11);
+
+    std::cout<<"L"<<std::endl<<q_SyncRead_L*R2D<<std::endl;
+    std::cout<<"R"<<std::endl<<q_SyncRead_R*R2D<<std::endl;
+    */
+
+    clock_gettime(CLOCK_MONOTONIC,&end_time);
+    time_diff = end_time.tv_nsec - start_time.tv_nsec;
+    if(time_diff<0) time_diff+=1000000000;
+    if(time_diff >= Control_Cycle*1000000) overrun_count++;
+    if(overrun_count>0) std::cout<<"overrun cnt : "<<overrun_count<<endl;
+    std::cout<<"thread time : "<<time_diff/1000<<"(us)"<<std::endl;
+
+
     clock_nanosleep(CLOCK_MONOTONIC,TIMER_ABSTIME,&next_time,NULL);
-    std::cout<<" : "<<j<<std::endl;
+    std::cout<<"t: "<<t<<std::endl;
+
+
+
   }
+  Dxl_.Close_port();
 }
 
 
@@ -556,6 +610,8 @@ int main(int argc, char **argv)
     loop_rate.sleep();
   }
 
+  Dxl_.Close_port();
+
   return 0;
 }
 
@@ -612,7 +668,7 @@ VectorXd IK_Geometric(MatrixXd Body,double D, double A,double B, double AH, Matr
   double alpha;
 
   if(cos_alpha>=1) alpha = 0.0;
-  else if(cos_alpha<=0.0) alpha = PI;
+  else if(cos_alpha<=-1/*0.0*/) alpha = PI;
   else alpha = acos((A*A + B*B - C*C)/(2.0*A*B));
 
   double alpha2 = acos((C*C + B*B - A*A)/(2.0*A*C));
@@ -804,12 +860,13 @@ VectorXd func_1_cos(double t, VectorXd init, VectorXd final, double T){
 
 
 double Tick_to_Radian(int Tick_4095, int joint_index){ //joint_index : 0,1,2...11
-  double Radian = joint_direction(joint_index) * Tick_4095*(PI/2048.0);
+  double Radian = (double)joint_direction(joint_index) * ((double)(Tick_4095-2048))*(PI/2048.0);
   return Radian;
 }
 
-int Radian_to_Tick(int Radian, int joint_index){  //joint_index : 0,1,2...11
+int Radian_to_Tick(double Radian, int joint_index){  //joint_index : 0,1,2...11
   int Tick_4095;
   Tick_4095 = (int)(joint_direction(joint_index) * Radian*(2048.0/PI));
+  Tick_4095 +=2048;
   return Tick_4095;
 }

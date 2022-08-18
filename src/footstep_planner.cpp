@@ -1,14 +1,19 @@
 #include "footstep_planner.h"
 
 FootstepPlanner::FootstepPlanner()
-  : fb_step_size(0.00), //m
-    step_time(0.3),    //sec
+  : fb_step_size(0.005), //m
+    step_time(0.5),    //sec
     step_num(20),      //step number
     start_foot(0),     //left : 0 right : 1
     dsp_ratio(0.3),
     goal_turn_angle(0), //radian
-    foot_height(0.05),     //m
-    foot_distance(0.1) //m
+    foot_height(0.00),     //m
+    foot_distance(0.10), //m
+    RHR_add_q(0.0),
+    LHR_add_q(0.0),
+    Hip_roll_add_q(10*PI/180.0),
+    Foot_y_adding(0.00),
+    two_feet_on_ground(false)
 {
 
 }
@@ -35,6 +40,8 @@ int FootstepPlanner::get_step_num(){return step_num;}
 double FootstepPlanner::get_start_foot(){ return start_foot; }
 double FootstepPlanner::get_dsp_ratio(){ return dsp_ratio; }
 double FootstepPlanner::get_goal_turn_angle(){ return goal_turn_angle; }
+double FootstepPlanner::get_LHR_add_q(){return LHR_add_q;}
+double FootstepPlanner::get_RHR_add_q(){return RHR_add_q;}
 
 void FootstepPlanner::Plan(){
 
@@ -118,10 +125,10 @@ struct XY FootstepPlanner::get_zmp_ref(double t){
     int step_index_n = (int)(t/step_time + 0.0001);
     if(step_index_n<step_num){
       zmp_ref.x = FootSteps[step_index_n][0];  //assume that zmp_ref = foot_center_point
-      zmp_ref.y = FootSteps[step_index_n][1];
+      zmp_ref.y = 1.4*FootSteps[step_index_n][1];
     }
     else{
-      zmp_ref.x = FootSteps[step_num-1][0];
+      zmp_ref.x= FootSteps[step_num-1][0];
       zmp_ref.y = 0; // must be modify
     }
   }
@@ -153,8 +160,26 @@ MatrixXd FootstepPlanner::get_Left_foot(double t){
         global_y   = FootSteps[step_index_n][1];
         global_z   = 0.0;
         global_yaw = FootSteps[step_index_n][2];
+
+        double pre_time = step_time * (double)step_index_n;
+        double dsp_time = step_time * dsp_ratio;
+        double half_dsp_time = 0.5*dsp_time;
+
+        LHR_add_q =  0.0;
+        RHR_add_q =  0.0;
+
+        if(half_dsp_time<=t-pre_time and t-pre_time<=(step_time-half_dsp_time)){
+          //LHR_add_q =  Hip_roll_add_q*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
+          LHR_add_q = func_1_cos(t,pre_time+half_dsp_time,step_time-dsp_time,Hip_roll_add_q);
+          RHR_add_q =  0.0;//LHR_add_q;//0.0;
+          R_foot_y_adding = Foot_y_adding*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
+        }
       }
       else{ //when left foot is moving foot
+
+        //LHR_add_q = 0.0;
+       // RHR_add_q = 0.0;
+
         double pre_time = step_time * (double)step_index_n;
         double dsp_time = step_time * dsp_ratio;
         double half_dsp_time = 0.5*dsp_time;
@@ -270,6 +295,10 @@ MatrixXd FootstepPlanner::get_Left_foot(double t){
             global_yaw = FootSteps[next_step_index][2];
           }
         }
+
+        if(half_dsp_time<=t-pre_time and t-pre_time<=(step_time-half_dsp_time)){
+          L_foot_y_adding = -Foot_y_adding*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
+        }
       }
     }
     else{ //must be modified
@@ -291,6 +320,12 @@ MatrixXd FootstepPlanner::get_Left_foot(double t){
   double S,C;
   S = sin(global_yaw);
   C = cos(global_yaw);
+
+  if(two_feet_on_ground)
+    global_z = 0;
+
+  global_y+=L_foot_y_adding;
+
   LeftFoot<<C, -S, 0, global_x,\
             S,  C, 0, global_y,\
             0,  0, 1, global_z,\
@@ -325,8 +360,25 @@ MatrixXd FootstepPlanner::get_Right_foot(double t){
         global_y   = FootSteps[step_index_n][1];
         global_z   = 0.0;
         global_yaw = FootSteps[step_index_n][2];
+
+        double pre_time = step_time * (double)step_index_n;
+        double dsp_time = step_time * dsp_ratio;
+        double half_dsp_time = 0.5*dsp_time;
+
+        LHR_add_q = 0.0;
+        RHR_add_q = 0.0;
+
+        if(half_dsp_time<=t-pre_time and t-pre_time<=(step_time-half_dsp_time)){
+          //LHR_add_q =  0.0;
+         // RHR_add_q =  -Hip_roll_add_q*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
+          RHR_add_q = -func_1_cos(t,pre_time+half_dsp_time,step_time-dsp_time,Hip_roll_add_q);
+          LHR_add_q = 0.0;//RHR_add_q;
+        }
       }
       else{ //when right foot is moving foot
+        //LHR_add_q = 0.0;
+        //RHR_add_q = 0.0;
+
         double pre_time = step_time * (double)step_index_n;
         double dsp_time = step_time * dsp_ratio;
         double half_dsp_time = 0.5*dsp_time;
@@ -436,7 +488,10 @@ MatrixXd FootstepPlanner::get_Right_foot(double t){
             global_z   = 0.0;
             global_yaw = FootSteps[next_step_index][2];
           }
+        }
 
+        if(half_dsp_time<=t-pre_time and t-pre_time<=(step_time-half_dsp_time)){
+          R_foot_y_adding = Foot_y_adding*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
         }
       }
     }
@@ -459,6 +514,11 @@ MatrixXd FootstepPlanner::get_Right_foot(double t){
   double S,C;
   S = sin(global_yaw);
   C = cos(global_yaw);
+  if(two_feet_on_ground)
+    global_z = 0;
+
+  global_y+=R_foot_y_adding;
+
   RightFoot<<C, -S, 0, global_x,\
             S,  C, 0, global_y,\
             0,  0, 1, global_z,\
@@ -488,7 +548,7 @@ double FootstepPlanner::ellipse_traj(double t, double T, double foot_Height){
 
 double FootstepPlanner::Bezier_curve_8th(double time, double start_t, double T){
   double t = time-start_t;
-  int P[9] = {0,0,0,100,0,100,0,0,0};
+  int P[9] = {0,0,0,50,0,50,0,0,0};
   double result = 0.0;
   for(int k=1;k<=9;k++){
     if(k<=8)
@@ -504,4 +564,14 @@ int FootstepPlanner::factorial(int n){
     return n*factorial(n-1);
   else
     return 1;
+}
+
+double FootstepPlanner::func_1_cos(double t, double start_t, double T, double max){
+  if(t-start_t <= (T/4.0)){
+    return max*0.5*(1.0-cos(PI*((t-start_t)/(T/4.0))));
+  }
+  else if(t-start_t >= (3.0*T/4.0)){
+    return (max + (0.0-max)*0.5*(1.0-cos(PI*((t-start_t-(3.0*T/4.0))/(T/4.0)))));
+  }
+  else return max;
 }

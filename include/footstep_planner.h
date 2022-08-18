@@ -37,6 +37,16 @@ private:
   int last_foot;
   double last_side_foot[3];
 
+  double LHR_add_q;
+  double RHR_add_q;
+  double L_foot_y_adding;
+  double R_foot_y_adding;
+
+  double Hip_roll_add_q;
+  double Foot_y_adding;
+  bool two_feet_on_ground;
+
+
 
 
 
@@ -58,6 +68,8 @@ public:
   double get_start_foot();
   double get_dsp_ratio();
   double get_goal_turn_angle();
+  double get_LHR_add_q();
+  double get_RHR_add_q();
   void Plan();
   struct XY get_zmp_ref(double t);
   MatrixXd get_Left_foot(double t);
@@ -65,6 +77,7 @@ public:
   double ellipse_traj(double present_time, double start_time, double T, double foot_Height);
   double ellipse_traj(double t, double T, double foot_Height);
   double Bezier_curve_8th(double time, double start_t, double T);
+  double func_1_cos(double t, double start_t, double T, double max);
   int factorial(int n);
 
 
