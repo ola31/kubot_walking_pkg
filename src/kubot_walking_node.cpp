@@ -55,8 +55,8 @@ VectorXd q0_R(6);
 /*kinematic parameter*/
 double L1 = 0.05;
 double L2 = 0.0;
-double L3 = 0.133;
-double L4 = 0.138;
+double L3 = 0.143;//0.133;
+double L4 = 0.144;//0.138;
 double L5 = 0.037;
 
 
@@ -73,7 +73,7 @@ double dt = 0.005;  //sampling time
 int N = 600;  //preview NL
 int n = (int)((double)All_time_trajectory/dt)+1;
 
-double z_c = 0.25; //Height of CoM
+double z_c = 0.26; //Height of CoM
 double g = 9.81; //Gravity Acceleration
 
 MatrixXd A(3,3);
@@ -268,12 +268,7 @@ void process(void){
     }
   }
   else if(phase == 1){
-/*
-    Body <<  1,0,0,  CoM.x,
-             0,1,0,  CoM.y,
-             0,0,1, body_z,
-             0,0,0,      1;
-*/
+
     Body <<  1,0,0,  CoM.x,
              0,1,0,  CoM.y,
              0,0,1, body_z,

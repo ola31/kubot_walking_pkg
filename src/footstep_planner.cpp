@@ -1,9 +1,9 @@
 #include "footstep_planner.h"
 
 FootstepPlanner::FootstepPlanner()
-  : fb_step_size(0.005), //m
+  : fb_step_size(0.020), //m
     step_time(0.5),    //sec
-    step_num(20),      //step number
+    step_num(30),      //step number
     start_foot(0),     //left : 0 right : 1
     dsp_ratio(0.3),
     goal_turn_angle(0), //radian
@@ -11,8 +11,10 @@ FootstepPlanner::FootstepPlanner()
     foot_distance(0.10), //m
     RHR_add_q(0.0),
     LHR_add_q(0.0),
-    Hip_roll_add_q(10*PI/180.0),
+    Hip_roll_add_q(7.0*PI/180.0),
     Foot_y_adding(0.00),
+    func_1_cos_param(5.0),
+    compensation_start_time_param(0.7),
     two_feet_on_ground(false)
 {
 
@@ -124,8 +126,8 @@ struct XY FootstepPlanner::get_zmp_ref(double t){
     t = t-preview_start_wait_time;
     int step_index_n = (int)(t/step_time + 0.0001);
     if(step_index_n<step_num){
-      zmp_ref.x = FootSteps[step_index_n][0];  //assume that zmp_ref = foot_center_point
-      zmp_ref.y = 1.4*FootSteps[step_index_n][1];
+      zmp_ref.x = FootSteps[step_index_n][0] + 0.020;  //assume that zmp_ref = foot_center_point
+      zmp_ref.y = 1.3*FootSteps[step_index_n][1];
     }
     else{
       zmp_ref.x= FootSteps[step_num-1][0];
@@ -170,7 +172,7 @@ MatrixXd FootstepPlanner::get_Left_foot(double t){
 
         if(half_dsp_time<=t-pre_time and t-pre_time<=(step_time-half_dsp_time)){
           //LHR_add_q =  Hip_roll_add_q*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
-          LHR_add_q = func_1_cos(t,pre_time+half_dsp_time,step_time-dsp_time,Hip_roll_add_q);
+          LHR_add_q = func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
           RHR_add_q =  0.0;//LHR_add_q;//0.0;
           R_foot_y_adding = Foot_y_adding*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
         }
@@ -371,7 +373,7 @@ MatrixXd FootstepPlanner::get_Right_foot(double t){
         if(half_dsp_time<=t-pre_time and t-pre_time<=(step_time-half_dsp_time)){
           //LHR_add_q =  0.0;
          // RHR_add_q =  -Hip_roll_add_q*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
-          RHR_add_q = -func_1_cos(t,pre_time+half_dsp_time,step_time-dsp_time,Hip_roll_add_q);
+          RHR_add_q = -func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
           LHR_add_q = 0.0;//RHR_add_q;
         }
       }
@@ -548,7 +550,8 @@ double FootstepPlanner::ellipse_traj(double t, double T, double foot_Height){
 
 double FootstepPlanner::Bezier_curve_8th(double time, double start_t, double T){
   double t = time-start_t;
-  int P[9] = {0,0,0,50,0,50,0,0,0};
+  int P[9] = {0,0,0,110,0,110,0,0,0};
+  //int P[9] = {0,0,0,0,0,0,0,0,0};
   double result = 0.0;
   for(int k=1;k<=9;k++){
     if(k<=8)
@@ -567,11 +570,11 @@ int FootstepPlanner::factorial(int n){
 }
 
 double FootstepPlanner::func_1_cos(double t, double start_t, double T, double max){
-  if(t-start_t <= (T/4.0)){
-    return max*0.5*(1.0-cos(PI*((t-start_t)/(T/4.0))));
+  if(t-start_t <= (T/func_1_cos_param)){
+    return max*0.5*(1.0-cos(PI*((t-start_t)/(T/func_1_cos_param))));
   }
-  else if(t-start_t >= (3.0*T/4.0)){
-    return (max + (0.0-max)*0.5*(1.0-cos(PI*((t-start_t-(3.0*T/4.0))/(T/4.0)))));
+  else if(t-start_t >= ((func_1_cos_param-1.0)*T/func_1_cos_param)){
+    return (max + (0.0-max)*0.5*(1.0-cos(PI*((t-start_t-((func_1_cos_param-1.0)*T/func_1_cos_param))/(T/func_1_cos_param)))));
   }
   else return max;
 }

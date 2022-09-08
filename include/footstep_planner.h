@@ -44,7 +44,9 @@ private:
 
   double Hip_roll_add_q;
   double Foot_y_adding;
+  double func_1_cos_param;
   bool two_feet_on_ground;
+  double compensation_start_time_param;
 
 
 
