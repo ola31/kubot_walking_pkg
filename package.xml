@@ -57,6 +57,8 @@
   <exec_depend>std_msgs</exec_depend>
   <depend>kubot_dxl_controller</depend>
 
+  <depend>sensor_msgs</depend>
+
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

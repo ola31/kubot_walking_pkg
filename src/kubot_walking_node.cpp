@@ -1,6 +1,7 @@
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "std_msgs/Float64.h"
+#include "sensor_msgs/Joy.h"
 
 //* Header file for C++
 #include <stdio.h>
@@ -68,7 +69,7 @@ struct XY{
 };
 */
 
-double All_time_trajectory = 10000;//15.0;  //(sec)
+double All_time_trajectory = 3600*100;//10000;//15.0;  //(sec)
 double dt = 0.005;  //sampling time
 int N = 600;  //preview NL
 int n = (int)((double)All_time_trajectory/dt)+1;
@@ -150,6 +151,10 @@ int nDoF = 12;
 VectorXd joint_direction(12);
 
 
+//ROS callback function
+void joy_callback(const sensor_msgs::Joy::ConstPtr& msg);
+
+
 void process(void){
   //dt = current_time.Double() - last_update_time.Double();
    //   cout << "dt:" << dt << endl;
@@ -192,17 +197,23 @@ void process(void){
   double step_length = 0.05;
   double step_height = 0.1;
 
-  if((phase == 1) && time_index < n-N){ //use Preview Control
+  if((phase == 1) /*&& time_index < n-N*/){ //use Preview Control
 
-    zmp_error.x = zmp.x - FootPlaner.get_zmp_ref(time_index*dt).x;
-    zmp_error.y = zmp.y - FootPlaner.get_zmp_ref(time_index*dt).y;
+    FootPlaner.update_footsteps(time_index*dt);
+
+    //zmp_error.x = zmp.x - FootPlaner.get_zmp_ref(time_index*dt).x;
+    //zmp_error.y = zmp.y - FootPlaner.get_zmp_ref(time_index*dt).y;
+    zmp_error.x = zmp.x - FootPlaner.get_zmp_ref2(time_index*dt).x;
+    zmp_error.y = zmp.y - FootPlaner.get_zmp_ref2(time_index*dt).y;
 
     sum_error.x = sum_error.x + zmp_error.x;
     sum_error.y = sum_error.y + zmp_error.y;
 
     for(int j=0;j<N;j++){
-      u_sum_p.x = u_sum_p.x + Gp(j)*FootPlaner.get_zmp_ref(dt*(time_index + j + 1)).x;
-      u_sum_p.y = u_sum_p.y + Gp(j)*FootPlaner.get_zmp_ref(dt*(time_index + j + 1)).y;
+      //u_sum_p.x = u_sum_p.x + Gp(j)*FootPlaner.get_zmp_ref(dt*(time_index + j + 1)).x;
+      //u_sum_p.y = u_sum_p.y + Gp(j)*FootPlaner.get_zmp_ref(dt*(time_index + j + 1)).y;
+      u_sum_p.x = u_sum_p.x + Gp(j)*FootPlaner.get_zmp_ref2(dt*(time_index + j + 1)).x;
+      u_sum_p.y = u_sum_p.y + Gp(j)*FootPlaner.get_zmp_ref2(dt*(time_index + j + 1)).y;
     }
 
     input_u.x = -Gi(0,0)*sum_error.x - (Gx*State_X)(0,0) - u_sum_p.x;
@@ -269,10 +280,23 @@ void process(void){
   }
   else if(phase == 1){
 
-    Body <<  1,0,0,  CoM.x,
-             0,1,0,  CoM.y,
-             0,0,1, body_z,
-             0,0,0,      1;
+/*
+      Body <<  1,0,0,  CoM.x,
+               0,1,0,  CoM.y,
+               0,0,1, body_z,
+               0,0,0,      1;
+*/
+
+      //double CoM_yaw_= FootPlaner.get_CoM_yaw(time_index*dt);
+      double CoM_yaw_= FootPlaner.get_CoM_yaw2(time_index*dt);
+      //printf("com_yaw : %lf\n",CoM_yaw_*180/PI);
+      double com_sin = sin(CoM_yaw_);
+      double com_cos = cos(CoM_yaw_);
+
+      Body <<  com_cos, -com_sin, 0,  CoM.x,
+               com_sin,  com_cos, 0,  CoM.y,
+                     0,        0, 1, body_z,
+                     0,        0, 0,      1;
 
   // Foot_L <<1,0,0,         0,
   //          0,1,0,    foot_y,
@@ -284,8 +308,10 @@ void process(void){
   //          0,0,1, R_foot_z,
   //          0,0,0,      1;
 
-    Foot_L = FootPlaner.get_Left_foot(time_index*dt);
-    Foot_R = FootPlaner.get_Right_foot(time_index*dt);
+    //Foot_L = FootPlaner.get_Left_foot(time_index*dt);
+    //Foot_R = FootPlaner.get_Right_foot(time_index*dt);
+    Foot_L = FootPlaner.get_Left_foot2(time_index*dt);
+    Foot_R = FootPlaner.get_Right_foot2(time_index*dt);
 
     //std::cout<<"Foot_L"<<std::endl;
     //std:cout<<Foot_L<<std::endl;
@@ -392,6 +418,7 @@ void process(void){
 
   q_command_L(1)+=FootPlaner.get_LHR_add_q();
   q_command_R(1)+=FootPlaner.get_RHR_add_q();
+  printf("L add q : %lf, R add q : %lf\n",FootPlaner.get_LHR_add_q(),FootPlaner.get_RHR_add_q());
 
   //q_command_L(5)+= -  FootPlaner.get_LHR_add_q();
   //q_command_R(5)+= -FootPlaner.get_RHR_add_q();
@@ -458,6 +485,7 @@ void *p_function(void * data)
 
   Preview_Init_Setting();
   FootPlaner.Plan();
+  FootPlaner.init_deque();
 
   joint_direction << -1, -1, -1, -1, -1,  1, -1, 1, 1, -1,  1,  1;
                    //RHY LHY RHR LHR RHP LHP RN LN RAP LAP RAR LAR
@@ -565,6 +593,8 @@ int main(int argc, char **argv)
   ros::Publisher L_foot_z_pub = nh.advertise<std_msgs::Float64>("kubotsim/L_foot_z", 1000);
   ros::Publisher R_foot_z_pub = nh.advertise<std_msgs::Float64>("kubotsim/R_foot_z", 1000);
 
+  ros::Subscriber joy_sub = nh.subscribe("joy", 1000, joy_callback);
+
   std_msgs::Float64 LHY_msg;
   std_msgs::Float64 LHR_msg;
   std_msgs::Float64 LHP_msg;
@@ -592,13 +622,13 @@ int main(int argc, char **argv)
   }
   sleep(1);
 
-  ros::Rate loop_rate(10);
+  ros::Rate loop_rate(50);
   while (ros::ok())
   {
-    std_msgs::String msg;
-    msg.data = "hello world";
+    //std_msgs::String msg;
+    //msg.data = "hello world";
 
-    chatter_pub.publish(msg);
+    //chatter_pub.publish(msg);
 
     ros::spinOnce();
 
@@ -864,4 +894,30 @@ int Radian_to_Tick(double Radian, int joint_index){  //joint_index : 0,1,2...11
   Tick_4095 = (int)(joint_direction(joint_index) * Radian*(2048.0/PI));
   Tick_4095 +=2048;
   return Tick_4095;
+}
+
+
+
+void joy_callback(const sensor_msgs::Joy::ConstPtr& msg)
+{
+    double fb_step_command = FootPlaner.max_fb_step*msg->axes[1];
+    double rl_step_command = FootPlaner.max_rl_step*msg->axes[0];
+    double rl_turn_command = FootPlaner.max_rl_turn*msg->axes[3];
+
+    if(abs(fb_step_command)<FootPlaner.unit_fb_step)
+      fb_step_command = 0.0;
+    if(abs(rl_step_command)<FootPlaner.unit_rl_step)
+      rl_step_command = 0.0;
+    if(abs(rl_turn_command)<FootPlaner.unit_rl_turn)
+      rl_turn_command = 0.0;
+    bool stop_command = msg->buttons[0]; //(X) button
+    bool walk_start_command = msg->buttons[1]; //(O) button
+    if(stop_command>=0.9)
+      FootPlaner.stop_flag = true;
+    if(walk_start_command>=0.9)
+      FootPlaner.stop_flag = false;
+
+    FootPlaner.goal_fb_step = fb_step_command;
+    FootPlaner.goal_rl_step = rl_step_command;
+    FootPlaner.goal_rl_turn = rl_turn_command;
 }
