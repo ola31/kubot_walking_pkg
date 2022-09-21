@@ -22,6 +22,8 @@
 #define D2R     PI/180.
 #define R2D     180./PI
 
+#define THREAD_CORE_SET 5
+
 #include <functional>
 
 #include <Eigen/Dense> // Eigen is a C++ template library for linear algebra: matrices, vectors, numerical solvers, and related algorithms.
@@ -297,6 +299,21 @@ void process(void){
                com_sin,  com_cos, 0,  CoM.y,
                      0,        0, 1, body_z,
                      0,        0, 0,      1;
+      MatrixXd body_CoM_offset(4,4);
+      MatrixXd body_CoM_offset2(4,4);
+
+      double sin_roll = sin(FootPlaner.Body_CoM_offset_roll);
+      double cos_roll = cos(FootPlaner.Body_CoM_offset_roll);
+      body_CoM_offset <<  1,  0, 0,  FootPlaner.Body_CoM_offset_x,
+                          0,  cos_roll, -sin_roll,  FootPlaner.Body_CoM_offset_y,
+                          0,  sin_roll, cos_roll,  0.0,
+                          0,  0, 0,    1;
+      body_CoM_offset2 <<  1,  0, 0,  FootPlaner.Body_CoM_offset_x,
+                          0,  1, 0,  FootPlaner.Body_CoM_offset_y,
+                          0,  0, 1,  0.0,
+                          0,  0, 0,    1;
+
+      Body = Body*body_CoM_offset2;
 
   // Foot_L <<1,0,0,         0,
   //          0,1,0,    foot_y,
@@ -612,7 +629,16 @@ int main(int argc, char **argv)
   std_msgs::Float64 R_foot_z_msg;
   std_msgs::Float64 foot_x_msg;
 
-  thr_id = pthread_create(&pthread, NULL, p_function, (void*)p1);
+  pthread_attr_t attr;
+  cpu_set_t cpus;
+  pthread_attr_init(&attr);
+
+  CPU_ZERO(&cpus);
+  CPU_SET(THREAD_CORE_SET, &cpus); //thread core set
+  pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpus);
+
+  thr_id = pthread_create(&pthread, &attr, p_function, (void*)p1);
+
   if(thr_id < 0){
     ROS_ERROR("pthread create error");
     exit(EXIT_FAILURE);

@@ -141,6 +141,7 @@ private:
   double func_1_cos_param;
   bool two_feet_on_ground;
   double compensation_start_time_param;
+  double compensation_start_time;
 
 
 
@@ -191,8 +192,8 @@ public:
   double goal_rl_step;
   double goal_rl_turn;
 
-  double fb_step = -0.02;
-  double rl_step = 0.03;//0.01;
+  double fb_step = 0.0;
+  double rl_step = 0.0;//0.01;
   double rl_turn = 0.0;//PI/36;
 
   double unit_fb_step = 0.01;
@@ -208,6 +209,9 @@ public:
   MatrixXd foot_tf_global = MatrixXd::Identity(4,4);
   std::vector<double>pre_step;
 
+  double Body_CoM_offset_x; //m
+  double Body_CoM_offset_y;
+  double Body_CoM_offset_roll; //roll
 
   std::deque<std::vector<double>> footstep_deque;
   void update_footsteps(double t_sec);
@@ -221,6 +225,8 @@ public:
   double get_CoM_yaw2(double t);
 
   void update_step_size_param(void);
+
+  double func_1_cos_double(double start, double end, double t, double T);
 
 
 };

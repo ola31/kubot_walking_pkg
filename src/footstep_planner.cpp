@@ -591,19 +591,21 @@ FootstepPlanner::FootstepPlanner()
     step_time(0.5),    //sec
     step_num(1000),      //step number
     start_foot(0),     //left : 0 right : 1
-    dsp_ratio(0.3),
+    dsp_ratio(0.2),
     goal_turn_angle(0.0*PI/180.0), //radian
     foot_height(0.00),     //m
     foot_distance(0.10), //m
     RHR_add_q(0.0),
     LHR_add_q(0.0),
-    Hip_roll_add_q(7.0*PI/180.0),
+    Hip_roll_add_q(9.0*PI/180.0),
     Foot_y_adding(0.00),
-    func_1_cos_param(5.0),
-    compensation_start_time_param(0.7),
+    func_1_cos_param(6.0),
+    compensation_start_time_param(0.8),
+    compensation_start_time(0.2*step_time*dsp_ratio*0.5),
+
     two_feet_on_ground(false),
 
-    //Footstep Params
+    //Footstep Param
     max_fb_step(0.05),
     max_rl_step(0.05),
     max_rl_turn(PI/10),
@@ -620,7 +622,12 @@ FootstepPlanner::FootstepPlanner()
     rl_step(0.0),//0.01;
     rl_turn(0.0),//PI/36;
 
-    stop_flag(true)
+    stop_flag(true),
+
+    Body_CoM_offset_x(0.0),
+    Body_CoM_offset_y(0.00),
+    Body_CoM_offset_roll(0.0*(PI/180.0))
+
 {
 
 }
@@ -648,7 +655,7 @@ double FootstepPlanner::get_start_foot(){ return start_foot; }
 double FootstepPlanner::get_dsp_ratio(){ return dsp_ratio; }
 double FootstepPlanner::get_goal_turn_angle(){ return goal_turn_angle; }
 double FootstepPlanner::get_LHR_add_q(){return LHR_add_q;}
-double FootstepPlanner::get_RHR_add_q(){return RHR_add_q;}
+double FootstepPlanner::get_RHR_add_q(){return 1.1*RHR_add_q;}
 
 void FootstepPlanner::Plan(){
 
@@ -1315,7 +1322,7 @@ void FootstepPlanner::update_footsteps(double t_sec){
     int N = 600;
     double dt = 0.005;
     double preview_time = N*dt;
-    if(deque_step_num >= ((int)(preview_time/step_time)+1)){
+    if(deque_step_num >= ((int)(preview_time/step_time)+2)){
       Fplanner_time+=dt;
       return;
     }
@@ -1784,11 +1791,26 @@ MatrixXd FootstepPlanner::get_Left_foot2(double t){
       LHR_add_q =  0.0;
       RHR_add_q =  0.0;
 
-      if(compensation_start_time_param*half_dsp_time<=t-pre_time and t-pre_time<=(step_time-compensation_start_time_param*half_dsp_time) and (step[3] < 1.1)){
-        //LHR_add_q =  Hip_roll_add_q*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
-        LHR_add_q = func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
-        RHR_add_q =  0.0;//LHR_add_q;//0.0;
-        R_foot_y_adding = Foot_y_adding*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
+      // if(compensation_start_time_param*half_dsp_time<=t-pre_time and t-pre_time<=(step_time-compensation_start_time_param*half_dsp_time) and (step[3] < 1.1)){
+      //   //LHR_add_q =  Hip_roll_add_q*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
+      //   LHR_add_q = func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
+      //   RHR_add_q =  0.0;//LHR_add_q;//0.0;
+      //   R_foot_y_adding = Foot_y_adding*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
+      // }
+      if(step[3] < 1.1){
+        if(t-pre_time< compensation_start_time){
+          LHR_add_q=0.0;
+        }
+        else if(compensation_start_time<=t-pre_time and t-pre_time<=half_dsp_time*compensation_start_time_param){
+          LHR_add_q = func_1_cos_double(0.0,Hip_roll_add_q,t-pre_time-compensation_start_time,half_dsp_time*compensation_start_time_param-compensation_start_time); //func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
+        }
+        else if(t-pre_time>= (step_time-compensation_start_time_param) and t-pre_time>=(step_time-half_dsp_time*compensation_start_time_param)){
+          LHR_add_q = func_1_cos_double(Hip_roll_add_q,0.0,t-pre_time-(step_time-half_dsp_time*compensation_start_time_param),half_dsp_time*compensation_start_time_param-compensation_start_time);
+        }
+        else{
+          LHR_add_q = Hip_roll_add_q;
+        }
+        RHR_add_q =  0.0;
       }
     }
     else{ //when left foot is moving foot
@@ -2008,11 +2030,26 @@ MatrixXd FootstepPlanner::get_Right_foot2(double t){
       LHR_add_q = 0.0;
       RHR_add_q = 0.0;
 
-      if(compensation_start_time_param*half_dsp_time<=t-pre_time and t-pre_time<=(step_time-compensation_start_time_param*half_dsp_time) and (step[3] < 1.1)){
-        //LHR_add_q =  0.0;
-       // RHR_add_q =  -Hip_roll_add_q*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
-        RHR_add_q = -func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
-        LHR_add_q = 0.0;//RHR_add_q;
+      // if(compensation_start_time_param*half_dsp_time<=t-pre_time and t-pre_time<=(step_time-compensation_start_time_param*half_dsp_time) and (step[3] < 1.1)){
+      //   //LHR_add_q =  0.0;
+      //  // RHR_add_q =  -Hip_roll_add_q*0.5*(1.0-cos(2.0*PI*((t-pre_time-half_dsp_time)/(step_time-dsp_time))));
+      //   RHR_add_q = -func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
+      //   LHR_add_q = 0.0;//RHR_add_q;
+      // }
+      if((step[3] < 1.1)){
+        if(t-pre_time< compensation_start_time){
+          RHR_add_q=0.0;
+        }
+        else if(compensation_start_time<=t-pre_time and t-pre_time<=half_dsp_time*compensation_start_time_param){
+          RHR_add_q = func_1_cos_double(0.0,-Hip_roll_add_q,t-pre_time-compensation_start_time,half_dsp_time*compensation_start_time_param-compensation_start_time); //func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
+        }
+        else if(t-pre_time>= (step_time-compensation_start_time_param) and t-pre_time>=(step_time-half_dsp_time*compensation_start_time_param)){
+          RHR_add_q = func_1_cos_double(-Hip_roll_add_q,0.0,t-pre_time-(step_time-half_dsp_time*compensation_start_time_param),half_dsp_time*compensation_start_time_param-compensation_start_time);
+        }
+        else{
+          RHR_add_q = -Hip_roll_add_q;
+        }
+        LHR_add_q =  0.0;
       }
     }
     else{ //when right foot is moving foot
@@ -2201,8 +2238,11 @@ struct XY FootstepPlanner::get_zmp_ref2(double t){
     //int step_index_n = (int)(t/step_time + 0.0001);
     std::vector<double>step;
     if(step_index_n>=footstep_deque.size())
-      step_index_n = footstep_deque.size()-1;
-    step = footstep_deque[step_index_n];
+      step = footstep_deque.back();
+      //step_index_n = footstep_deque.size()-1;
+    else
+      step = footstep_deque[step_index_n];
+
     if(step[3]<1.9/*stop flag false*/){
       //zmp_ref.x = FootSteps[step_index_n][0] + 0.000;  //assume that zmp_ref = foot_center_point
       //zmp_ref.y = 1.0*FootSteps[step_index_n][1];
@@ -2210,12 +2250,12 @@ struct XY FootstepPlanner::get_zmp_ref2(double t){
       zmp_ref.y = 1.0*step[1];
 
       if(step[3]<0.5){ //left_foot
-        zmp_ref.x -= ((0.018)*sin(step[2]) - (0.02)*cos(step[2]));
-        zmp_ref.y += ((0.018)*cos(step[2]) + (0.02)*sin(step[2]));
+        zmp_ref.x -= ((0.015)*sin(step[2]));// - (0.02)*cos(step[2]));
+        zmp_ref.y += ((0.015)*cos(step[2]));// + (0.02)*sin(step[2]));
       }
       else{
-        zmp_ref.x += ((0.015)*sin(step[2]) + (0.02)*cos(step[2]));
-        zmp_ref.y -= ((0.015)*cos(step[2]) - (0.02)*sin(step[2]));
+        zmp_ref.x += ((0.015)*sin(step[2]));// + (0.02)*cos(step[2]));
+        zmp_ref.y -= ((0.015)*cos(step[2]));// - (0.02)*sin(step[2]));
         //Y ADD ,X ADD
       }
     }
@@ -2362,3 +2402,12 @@ void FootstepPlanner::update_step_size_param(void){
   return;
 }
 
+
+double FootstepPlanner::func_1_cos_double(double start, double end, double t, double T){
+  if(0.0<=t and t<=T)
+    return start + (end-start)*0.5*(1.0-cos(PI*(t/T)));
+  else if(t<0.0)
+    return start;
+  else
+    return end;
+}
