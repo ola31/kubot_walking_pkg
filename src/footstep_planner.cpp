@@ -591,13 +591,13 @@ FootstepPlanner::FootstepPlanner()
     step_time(0.5),    //sec
     step_num(1000),      //step number
     start_foot(0),     //left : 0 right : 1
-    dsp_ratio(0.2),
+    dsp_ratio(0.3),
     goal_turn_angle(0.0*PI/180.0), //radian
     foot_height(0.00),     //m
     foot_distance(0.10), //m
     RHR_add_q(0.0),
     LHR_add_q(0.0),
-    Hip_roll_add_q(9.0*PI/180.0),
+    Hip_roll_add_q(8.0*PI/180.0),
     Foot_y_adding(0.00),
     func_1_cos_param(6.0),
     compensation_start_time_param(0.8),
@@ -624,8 +624,8 @@ FootstepPlanner::FootstepPlanner()
 
     stop_flag(true),
 
-    Body_CoM_offset_x(0.0),
-    Body_CoM_offset_y(0.00),
+    Body_CoM_offset_x(0.04),
+    Body_CoM_offset_y(0.003),
     Body_CoM_offset_roll(0.0*(PI/180.0))
 
 {
@@ -655,7 +655,7 @@ double FootstepPlanner::get_start_foot(){ return start_foot; }
 double FootstepPlanner::get_dsp_ratio(){ return dsp_ratio; }
 double FootstepPlanner::get_goal_turn_angle(){ return goal_turn_angle; }
 double FootstepPlanner::get_LHR_add_q(){return LHR_add_q;}
-double FootstepPlanner::get_RHR_add_q(){return 1.1*RHR_add_q;}
+double FootstepPlanner::get_RHR_add_q(){return RHR_add_q;}
 
 void FootstepPlanner::Plan(){
 
@@ -1192,6 +1192,7 @@ double FootstepPlanner::ellipse_traj(double t, double T, double foot_Height){
 double FootstepPlanner::Bezier_curve_8th(double time, double start_t, double T){
   double t = time-start_t;
   int P[9] = {0,0,0,110,0,110,0,0,0};
+  //int P[9] = {0,0,0,30,0,30,0,0};
   //int P[9] = {0,0,0,0,0,0,0,0,0};
   double result = 0.0;
   for(int k=1;k<=9;k++){
@@ -1804,7 +1805,10 @@ MatrixXd FootstepPlanner::get_Left_foot2(double t){
         else if(compensation_start_time<=t-pre_time and t-pre_time<=half_dsp_time*compensation_start_time_param){
           LHR_add_q = func_1_cos_double(0.0,Hip_roll_add_q,t-pre_time-compensation_start_time,half_dsp_time*compensation_start_time_param-compensation_start_time); //func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
         }
-        else if(t-pre_time>= (step_time-compensation_start_time_param) and t-pre_time>=(step_time-half_dsp_time*compensation_start_time_param)){
+       //else if(t-pre_time>= (step_time-compensation_start_time_param) and t-pre_time>=(step_time-half_dsp_time*compensation_start_time_param)){
+       //  LHR_add_q = func_1_cos_double(Hip_roll_add_q,0.0,t-pre_time-(step_time-half_dsp_time*compensation_start_time_param),half_dsp_time*compensation_start_time_param-compensation_start_time);
+       //}
+        else if(t-pre_time<= (step_time-compensation_start_time_param) and t-pre_time>=(step_time-half_dsp_time*compensation_start_time_param)){
           LHR_add_q = func_1_cos_double(Hip_roll_add_q,0.0,t-pre_time-(step_time-half_dsp_time*compensation_start_time_param),half_dsp_time*compensation_start_time_param-compensation_start_time);
         }
         else{
@@ -2043,7 +2047,10 @@ MatrixXd FootstepPlanner::get_Right_foot2(double t){
         else if(compensation_start_time<=t-pre_time and t-pre_time<=half_dsp_time*compensation_start_time_param){
           RHR_add_q = func_1_cos_double(0.0,-Hip_roll_add_q,t-pre_time-compensation_start_time,half_dsp_time*compensation_start_time_param-compensation_start_time); //func_1_cos(t,pre_time+compensation_start_time_param*half_dsp_time,step_time-dsp_time+(1.0-compensation_start_time_param)*half_dsp_time,Hip_roll_add_q);
         }
-        else if(t-pre_time>= (step_time-compensation_start_time_param) and t-pre_time>=(step_time-half_dsp_time*compensation_start_time_param)){
+        //else if(t-pre_time>= (step_time-compensation_start_time_param) and t-pre_time>=(step_time-half_dsp_time*compensation_start_time_param)){
+        //  RHR_add_q = func_1_cos_double(-Hip_roll_add_q,0.0,t-pre_time-(step_time-half_dsp_time*compensation_start_time_param),half_dsp_time*compensation_start_time_param-compensation_start_time);
+        //}
+        else if(t-pre_time<= (step_time-compensation_start_time_param) and t-pre_time>=(step_time-half_dsp_time*compensation_start_time_param)){
           RHR_add_q = func_1_cos_double(-Hip_roll_add_q,0.0,t-pre_time-(step_time-half_dsp_time*compensation_start_time_param),half_dsp_time*compensation_start_time_param-compensation_start_time);
         }
         else{

@@ -313,7 +313,7 @@ void process(void){
                           0,  0, 1,  0.0,
                           0,  0, 0,    1;
 
-      Body = Body*body_CoM_offset2;
+     Body = Body*body_CoM_offset2;
 
   // Foot_L <<1,0,0,         0,
   //          0,1,0,    foot_y,
