@@ -301,19 +301,26 @@ void process(void){
                      0,        0, 0,      1;
       MatrixXd body_CoM_offset(4,4);
       MatrixXd body_CoM_offset2(4,4);
+      MatrixXd body_CoM_offset3(4,4);
 
       double sin_roll = sin(FootPlaner.Body_CoM_offset_roll);
       double cos_roll = cos(FootPlaner.Body_CoM_offset_roll);
+
+      //double sin_pitch = sin(FootPlaner.Body_CoM_offset_pitch);
+      //double cos_pitch = cos(FootPlaner.Body_CoM_offset_pitch);
+
       body_CoM_offset <<  1,  0, 0,  FootPlaner.Body_CoM_offset_x,
                           0,  cos_roll, -sin_roll,  FootPlaner.Body_CoM_offset_y,
                           0,  sin_roll, cos_roll,  0.0,
                           0,  0, 0,    1;
-      body_CoM_offset2 <<  1,  0, 0,  FootPlaner.Body_CoM_offset_x,
-                          0,  1, 0,  FootPlaner.Body_CoM_offset_y,
-                          0,  0, 1,  0.0,
-                          0,  0, 0,    1;
+      body_CoM_offset2 <<  1,  0,  0,  FootPlaner.Body_CoM_offset_x,
+                           0,  1,  0,  FootPlaner.Body_CoM_offset_y,
+                           0,  0,  1,  0.0,
+                           0,  0,  0,    1;
+      //body_CoM_offset3 = MatrixXd::Identity(4,4);
+      //body_CoM_offset3.block(0,0,3,3)= rotMat_Y(FootPlaner.Body_CoM_offset_pitch);
 
-     Body = Body*body_CoM_offset2;
+      Body = Body*body_CoM_offset2;//*body_CoM_offset3;
 
   // Foot_L <<1,0,0,         0,
   //          0,1,0,    foot_y,
@@ -435,6 +442,11 @@ void process(void){
 
   q_command_L(1)+=FootPlaner.get_LHR_add_q();
   q_command_R(1)+=FootPlaner.get_RHR_add_q();
+
+  q_command_L(2)+=FootPlaner.get_LHP_add_q();
+  q_command_R(2)+=FootPlaner.get_RHP_add_q();
+
+
   printf("L add q : %lf, R add q : %lf\n",FootPlaner.get_LHR_add_q(),FootPlaner.get_RHR_add_q());
 
   //q_command_L(5)+= -  FootPlaner.get_LHR_add_q();

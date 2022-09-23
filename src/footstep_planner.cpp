@@ -585,6 +585,7 @@
 
 double func_1_cos_yaw(double start, double end, double t, double T);
 
+
 FootstepPlanner::FootstepPlanner()
   : walking_mode(0),
     fb_step_size(0.000), //m
@@ -600,8 +601,8 @@ FootstepPlanner::FootstepPlanner()
     Hip_roll_add_q(8.0*PI/180.0),
     Foot_y_adding(0.00),
     func_1_cos_param(6.0),
-    compensation_start_time_param(0.8),
-    compensation_start_time(0.2*step_time*dsp_ratio*0.5),
+    compensation_start_time_param(0.9),
+    compensation_start_time(0.1*step_time*dsp_ratio*0.5),
 
     two_feet_on_ground(false),
 
@@ -624,9 +625,13 @@ FootstepPlanner::FootstepPlanner()
 
     stop_flag(true),
 
-    Body_CoM_offset_x(0.04),
-    Body_CoM_offset_y(0.003),
-    Body_CoM_offset_roll(0.0*(PI/180.0))
+    Body_CoM_offset_x(0.00),
+    Body_CoM_offset_y(0.005),
+    Body_CoM_offset_roll(0.0*(PI/180.0)),
+    Body_CoM_offset_pitch(0.0*(PI/180.0)),
+
+    RHP_add_q(-3.0*(PI/180.0)),
+    LHP_add_q(-3.0*(PI/180.0))
 
 {
 
@@ -654,8 +659,10 @@ int FootstepPlanner::get_step_num(){return step_num;}
 double FootstepPlanner::get_start_foot(){ return start_foot; }
 double FootstepPlanner::get_dsp_ratio(){ return dsp_ratio; }
 double FootstepPlanner::get_goal_turn_angle(){ return goal_turn_angle; }
-double FootstepPlanner::get_LHR_add_q(){return LHR_add_q;}
+double FootstepPlanner::get_LHR_add_q(){return 1.2*LHR_add_q;}
 double FootstepPlanner::get_RHR_add_q(){return RHR_add_q;}
+double FootstepPlanner::get_LHP_add_q(){return LHP_add_q;}
+double FootstepPlanner::get_RHP_add_q(){return RHP_add_q;}
 
 void FootstepPlanner::Plan(){
 
@@ -1191,8 +1198,8 @@ double FootstepPlanner::ellipse_traj(double t, double T, double foot_Height){
 
 double FootstepPlanner::Bezier_curve_8th(double time, double start_t, double T){
   double t = time-start_t;
-  int P[9] = {0,0,0,110,0,110,0,0,0};
-  //int P[9] = {0,0,0,30,0,30,0,0};
+  //int P[9] = {0,0,0,110,0,110,0,0,0};
+  int P[9] = {0,0,0,130,0,130,0,0,0};
   //int P[9] = {0,0,0,0,0,0,0,0,0};
   double result = 0.0;
   for(int k=1;k<=9;k++){
@@ -2257,12 +2264,12 @@ struct XY FootstepPlanner::get_zmp_ref2(double t){
       zmp_ref.y = 1.0*step[1];
 
       if(step[3]<0.5){ //left_foot
-        zmp_ref.x -= ((0.015)*sin(step[2]));// - (0.02)*cos(step[2]));
-        zmp_ref.y += ((0.015)*cos(step[2]));// + (0.02)*sin(step[2]));
+        zmp_ref.x -= ((0.022)*sin(step[2]));// - (0.02)*cos(step[2]));
+        zmp_ref.y += ((0.022)*cos(step[2]));// + (0.02)*sin(step[2]));
       }
       else{
-        zmp_ref.x += ((0.015)*sin(step[2]));// + (0.02)*cos(step[2]));
-        zmp_ref.y -= ((0.015)*cos(step[2]));// - (0.02)*sin(step[2]));
+        zmp_ref.x += ((0.022)*sin(step[2]));// + (0.02)*cos(step[2]));
+        zmp_ref.y -= ((0.022)*cos(step[2]));// - (0.02)*sin(step[2]));
         //Y ADD ,X ADD
       }
     }

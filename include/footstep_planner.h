@@ -212,6 +212,10 @@ public:
   double Body_CoM_offset_x; //m
   double Body_CoM_offset_y;
   double Body_CoM_offset_roll; //roll
+  double Body_CoM_offset_pitch; //pitch
+
+  double LHP_add_q;
+  double RHP_add_q;
 
   std::deque<std::vector<double>> footstep_deque;
   void update_footsteps(double t_sec);
@@ -227,6 +231,9 @@ public:
   void update_step_size_param(void);
 
   double func_1_cos_double(double start, double end, double t, double T);
+
+  double get_LHP_add_q();
+  double get_RHP_add_q();
 
 
 };
